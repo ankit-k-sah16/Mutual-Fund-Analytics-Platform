@@ -78,19 +78,17 @@ CREATE TABLE fact_performance (
         REFERENCES dim_date(date_key)
 );
 
-CREATE TABLE fact_aum (
+CREATE TABLE fact_aum_house (
     aum_fact_key INTEGER PRIMARY KEY AUTOINCREMENT,
-    fund_key INTEGER NOT NULL,
     date_key INTEGER NOT NULL,
-
+    fund_house TEXT NOT NULL,
     aum_value REAL NOT NULL,
-
-    FOREIGN KEY (fund_key)
-        REFERENCES dim_fund(fund_key),
+    num_schemes INTEGER,
 
     FOREIGN KEY (date_key)
         REFERENCES dim_date(date_key)
 );
+
 CREATE INDEX idx_fund_amfi
 ON dim_fund(amfi_code);
 

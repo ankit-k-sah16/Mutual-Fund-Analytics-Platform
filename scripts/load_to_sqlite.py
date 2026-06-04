@@ -1,12 +1,17 @@
+from pathlib import Path
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from sqlalchemy import create_engine
 
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-# DATABASE CONNECTION
+db_path = BASE_DIR / "data" / "database" / "bluestock_mf.db"
 
+print("Using DB:", db_path)
 
-engine = create_engine("sqlite:///database/bluestock_mf.db")
+#DATABASE CONNECTION
 
+engine = create_engine(f"sqlite:///{db_path}")
 
 # FILE PATHS
 
@@ -16,18 +21,23 @@ files = {
     "stg_nav_history": r"D:\bluestock_mf_capstone\data\processed\02_nav_history_cleaned.csv",
     "stg_investor_transactions": r"D:\bluestock_mf_capstone\data\processed\08_investor_transactions_cleaned.csv",
     "stg_scheme_performance": r"D:\bluestock_mf_capstone\data\processed\07_scheme_performance_cleaned.csv",
-    "stg_aum_history": r"D:\bluestock_mf_capstone\data\processed\05_aum_by_fund_house_cleaned.csv"
+    "stg_aum_history": r"D:\bluestock_mf_capstone\data\processed\03_aum_by_fund_house_cleaned.csv"
 }
 
 
-# LOAD CSVs INTO STAGING TABLES
+# LOADING CSVs INTO STAGING TABLES
 
 
 print("\nLoading staging tables...\n")
 
 for table_name, file_path in files.items():
 
+    print(f"Loading {table_name}")
+    print(f"Source: {file_path}")
+
     df = pd.read_csv(file_path)
+
+    print(f"Rows: {len(df)}")
 
     df.to_sql(
         name=table_name,
@@ -39,7 +49,7 @@ for table_name, file_path in files.items():
     print(f" {table_name}: {len(df):,} rows loaded")
 
 
-# VALIDATE ROW COUNTS
+# VALIDATING ROW COUNTS
 
 
 print("\n" + "=" * 60)
@@ -71,7 +81,7 @@ print("\n All staging tables loaded successfully.")
 with engine.begin() as conn:
 
     conn.execute(text("""
-        INSERT INTO dim_fund (
+        INSERT OR IGNORE INTO dim_fund (
             amfi_code,
             scheme_name,
             fund_house,
@@ -123,13 +133,14 @@ dim_date.to_sql(
     index=False
 )
 
-print(f" dim_date loaded ({len(dim_date)} rows)")
+print(f" dim_date loaded ({len(dim_date)} rows)") 
+
 
 ## Populating fact_nav from stg_nav_history, joining with dim_fund and dim_date to get keys
 with engine.begin() as conn:
 
     conn.execute(text("""
-        INSERT INTO fact_nav (
+        INSERT  OR IGNORE INTO fact_nav (
             fund_key,
             date_key,
             nav_value
@@ -167,7 +178,7 @@ with engine.connect() as conn:
 with engine.begin() as conn:
 
     conn.execute(text("""
-        INSERT INTO fact_transactions (
+        INSERT OR IGNORE INTO fact_transactions (
             fund_key,
             date_key,
             transaction_type,
@@ -208,7 +219,7 @@ with engine.begin() as conn:
 with engine.begin() as conn:
 
     conn.execute(text(f"""
-        INSERT INTO fact_performance (
+        INSERT OR IGNORE INTO fact_performance (
             fund_key,
             date_key,
             return_1y,
@@ -228,23 +239,25 @@ with engine.begin() as conn:
 
 print("fact_performance loaded")
 
-#Populating fact_aum_house from stg_aum_history, joining with dim_date to get date_key
+#Populating fact_aum from stg_aum_history, joining with dim_date to get date_key
 
 with engine.begin() as conn:
 
     conn.execute(text("""
-        INSERT INTO fact_aum_house (
+        INSERT OR IGNORE INTO fact_aum_house (
             date_key,
             fund_house,
-            aum_value
+            aum_value,
+            num_schemes
         )
         SELECT
             d.date_key,
             a.fund_house,
-            a.aum_crore
+            a.aum_crore,
+            a.num_schemes
         FROM stg_aum_history a
         JOIN dim_date d
             ON DATE(a.date) = DATE(d.full_date)
     """))
 
-print("✓ fact_aum_house loaded")
+print("fact_aum_house loaded")
